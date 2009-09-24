@@ -233,15 +233,43 @@ class GitClone(SetupCommand):
             cache_dir = self.cache_dir
             if not cache_dir:
                 cache_dir = guess_cache_dir(dirname)
-                
-        ##
+        else:
+            raise Exception("MUST USE CACHE")
 
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+
+        #change to working directory. It is nicer to use git this way than to fiddle with the
+        #GIT_DIR environment variable
+        os.chdir(cache_dir)
+
+        #first clone ever
+        if not os.path.exists(os.path.join(cache_dir, dirname, '.git', 'config')):
+            print "INITIAL CLONE"
+            cmdlist = ['git', 'clone', '--depth=1', self.repository]
+            (ret, out, err) = _run_command(cmdlist)
+        
+            self.results_dict['clone'] = \
+                 dict(status=ret, output=out, errout=err,
+                      command=str(cmdlist))
+
+            if ret != 0:
+                return
+
+        #at this point we have a checkout
+        if not os.path.exists(dirname) and os.path.isdir(dirname):
+            print 'wrong guess; %s does not exist.  whoops' % (dirname,)
+            self.status = -1
+            return
+        #change to that dir
+        #os.chdir(dirname)
+
+        #update the cache
         if self.use_cache and cache_dir:
-            cwd = os.getcwd()
-            os.chdir(cache_dir)
+            print "FETCH"
             branchspec = '%s:%s' % (self.branch, self.branch)
             cmdlist = ['git', 'fetch', '-ufv', self.repository, branchspec]
-            (ret, out, err) = _run_command(cmdlist)
+            (ret, out, err) = _run_command(cmdlist, dirname)
 
             self.results_dict['cache_update'] = \
                      dict(status=ret, output=out, errout=err,
@@ -250,37 +278,9 @@ class GitClone(SetupCommand):
             if ret != 0:
                 return
 
-            os.chdir(cwd)
-
-        ##
-
-        print cmdlist, out
-
-        # now, do a clone, from either the parent OR the local cache
-        location = self.repository
-        if cache_dir:
-            location = cache_dir
-            
-        cmdlist = ['git', 'clone', self.repository]
-        (ret, out, err) = _run_command(cmdlist)
-        
-        self.results_dict['clone'] = \
-                 dict(status=ret, output=out, errout=err,
-                      command=str(cmdlist))
-        if ret != 0:
-            return
-
-        print cmdlist, out
-
-        if not os.path.exists(dirname) and os.path.isdir(dirname):
-            print 'wrong guess; %s does not exist.  whoops' % (dirname,)
-            self.status = -1
-            return
-
-        ##
-
         # check out the right branch
         if self.branch != 'master':
+            print "NON MASTER CHECKOUT"
             cmdlist = ['git', 'checkout', 'origin/'+self.branch]
             (ret, out, err) = _run_command(cmdlist, dirname)
 
@@ -310,7 +310,6 @@ class GitClone(SetupCommand):
         assert ret == 0, (cmdlist, ret, out, err)
 
         self.version_info = out.strip()
-
         self.status = 0
 
         # set the build directory, too.
