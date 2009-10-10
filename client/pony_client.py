@@ -40,6 +40,7 @@ def _replace_variables(cmd, variables_d):
     return cmd
 
 def _run_command(command_list, cwd=None, variables=None):
+    print command_list
     if variables:
         x = []
         for cmd in command_list:
