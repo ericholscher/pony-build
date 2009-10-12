@@ -11,6 +11,6 @@ setup(name='pony-build',
       url = 'http://github.com/ctb/pony-build',
       license = 'BSD',
       packages = ['pony_build'],
-      test_suite = 'nose.collector'
-#      py_modules = ['client/pony_build_client'],
-      )
+      test_suite = 'nose.collector',
+      py_modules = ['client/pony_client'],
+)
