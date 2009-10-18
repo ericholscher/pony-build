@@ -12,5 +12,4 @@ setup(name='pony-build',
       license = 'BSD',
       packages = ['pony_build'],
       test_suite = 'nose.collector',
-      py_modules = ['client/pony_client'],
 )
