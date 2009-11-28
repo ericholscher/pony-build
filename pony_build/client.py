@@ -126,6 +126,7 @@ class VirtualenvContext(Context):
         
         # calculate where a few things live so we can easily shell out to 'em
         self.python = os.path.join(self.tempdir, 'bin', 'python')
+        self.djangoadmin = os.path.join(self.tempdir, 'bin', 'django-admin.py')
         self.easy_install = os.path.join(self.tempdir, 'bin', 'easy_install')
         self.pip = os.path.join(self.tempdir, 'bin', 'pip')
 
