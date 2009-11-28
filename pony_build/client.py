@@ -4,6 +4,7 @@ Client library + simple command-line script for pony-build.
 See http://github.com/ctb/pony-build/.
 """
 
+import datetime
 import sys
 import subprocess
 import xmlrpclib
@@ -131,7 +132,7 @@ class VirtualenvContext(Context):
         self.pip = os.path.join(self.tempdir, 'bin', 'pip')
 
     def initialize(self):
-        Context.initialize(self)
+        self.start_time = datetime.datetime.now()
         print 'changing to temp directory:', self.tempdir
         self.cwd = os.getcwd()
         os.chdir(self.tempdir)
@@ -146,14 +147,16 @@ class VirtualenvContext(Context):
     def finish(self):
         os.chdir(self.cwd)
         try:
-            Context.finish(self)
+            self.end_time = datetime.datetime.now()
         finally:
             if self.cleanup:
                 print 'removing', self.tempdir
                 shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def update_client_info(self, info):
-        Context.update_client_info(self, info)
+        #Context.update_client_info(self, info)
+        info['start_time'] = str(self.start_time)
+        info['end_time'] = str(self.end_time)
         info['tempdir'] = self.tempdir
         info['virtualenv'] = True
 
