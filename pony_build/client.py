@@ -329,6 +329,12 @@ class GitClone(SetupCommand):
         context.build_dir = os.path.join(os.getcwd(),
                                          dirname)
 
+        #Make sure we're at the HEAD in the filesystem.
+        cmdlist = ['git', 'reset', '--hard', 'HEAD']
+        (ret, out, err) = _run_command(cmdlist, dirname)
+
+
+
     def get_results(self):
         self.results_dict['out'] = self.results_dict['errout'] = ''
         self.results_dict['command'] = 'GitClone(%s, %s)' % (self.repository,
