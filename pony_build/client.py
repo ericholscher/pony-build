@@ -41,17 +41,19 @@ def _replace_variables(cmd, variables_d):
     return cmd
 
 def _run_command(command_list, cwd=None, variables=None):
-    print command_list
+    environment = os.environ.copy()
+    environment['PIP_DOWNLOAD_CACHE'] = '/tmp/pip/download'
     if variables:
         x = []
         for cmd in command_list:
             cmd = _replace_variables(cmd, variables)
             x.append(cmd)
         command_list = x
-        
+
     try:
         p = subprocess.Popen(command_list, shell=False, cwd=cwd,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             env=environment)
 
         out, err = p.communicate()
         ret = p.returncode
@@ -67,13 +69,13 @@ class Context(object):
         self.history = []
         self.start_time = self.end_time = None
         self.build_dir = None
-        
+
     def initialize(self):
         self.start_time = time.time()
 
     def finish(self):
         self.end_time = time.time()
-        
+
     def start_command(self, command):
         if self.build_dir:
             os.chdir(self.build_dir)
@@ -93,7 +95,7 @@ class TempDirectoryContext(Context):
         Context.initialize(self)
         self.tempdir = tempfile.mkdtemp()
         self.cwd = os.getcwd()
-        
+
         print 'changing to temp directory:', self.tempdir
         os.chdir(self.tempdir)
 
@@ -119,12 +121,12 @@ class VirtualenvContext(Context):
         # Create the virtualenv. Have to do this here so that commands can use
         # VirtualenvContext.python (etc) to get at the right python.
         import virtualenv
-        
+
         self.tempdir = tempfile.mkdtemp()
-        
+
         print 'creating virtualenv'
         _run_command(['virtualenv', '--no-site-packages', self.tempdir])
-        
+
         # calculate where a few things live so we can easily shell out to 'em
         self.python = os.path.join(self.tempdir, 'bin', 'python')
         self.djangoadmin = os.path.join(self.tempdir, 'bin', 'django-admin.py')
@@ -136,7 +138,7 @@ class VirtualenvContext(Context):
         print 'changing to temp directory:', self.tempdir
         self.cwd = os.getcwd()
         os.chdir(self.tempdir)
-        
+
         # install pip, then use it to install any packages desired
         print 'installing pip'
         _run_command([self.easy_install, '-U', 'pip'])
@@ -153,6 +155,8 @@ class VirtualenvContext(Context):
                 print 'removing', self.tempdir
                 shutil.rmtree(self.tempdir, ignore_errors=True)
 
+
+
     def update_client_info(self, info):
         #Context.update_client_info(self, info)
         info['start_time'] = str(self.start_time)
@@ -166,7 +170,7 @@ class BaseCommand(object):
         if name:
             self.command_name = name
         self.run_cwd = run_cwd
-        
+
         self.status = None
         self.output = None
         self.errout = None
@@ -176,12 +180,13 @@ class BaseCommand(object):
 
     def set_variables(self, v):
         self.variables = dict(v)
-        
+
     def run(self, context):
         start = time.time()
+
         (ret, out, err) = _run_command(self.command_list, cwd=self.run_cwd,
                                        variables=self.variables)
-        
+
         self.status = ret
         self.output = out
         self.errout = err
@@ -209,14 +214,14 @@ class SetupCommand(BaseCommand):
 class BuildCommand(BaseCommand):
     command_type = 'build'
     command_name = 'build'
-        
+
 class TestCommand(BaseCommand):
     command_type = 'test'
     command_name = 'test'
 
 class GitClone(SetupCommand):
     command_name = 'checkout'
-    
+
     def __init__(self, repository, branch='master', cache_dir=None,
                  use_cache=True, **kwargs):
         SetupCommand.__init__(self, [], **kwargs)
@@ -230,7 +235,7 @@ class GitClone(SetupCommand):
         self.version_info = ''
 
         self.results_dict = {}
-        
+
     def run(self, context):
         # first, guess the co dir name
         p = urlparse.urlparse(self.repository) # what about Windows path names?
@@ -261,7 +266,7 @@ class GitClone(SetupCommand):
             print "INITIAL CLONE"
             cmdlist = ['git', 'clone', '--depth=1', self.repository]
             (ret, out, err) = _run_command(cmdlist)
-        
+
             self.results_dict['clone'] = \
                  dict(status=ret, output=out, errout=err,
                       command=str(cmdlist))
@@ -279,7 +284,6 @@ class GitClone(SetupCommand):
 
         #update the cache
         if self.use_cache and cache_dir:
-            print "FETCH"
             branchspec = '%s:%s' % (self.branch, self.branch)
             cmdlist = ['git', 'fetch', '-ufv', self.repository, branchspec]
             (ret, out, err) = _run_command(cmdlist, dirname)
@@ -287,7 +291,7 @@ class GitClone(SetupCommand):
             self.results_dict['cache_update'] = \
                      dict(status=ret, output=out, errout=err,
                           command=str(cmdlist))
-            
+
             if ret != 0:
                 return
 
@@ -346,9 +350,9 @@ class GitClone(SetupCommand):
         self.results_dict['version_type'] = 'git'
         if self.version_info:
             self.results_dict['version_info'] = self.version_info
-        
+
         return self.results_dict
-            
+
 class SvnUpdate(SetupCommand):
     command_name = 'checkout'
 
@@ -361,7 +365,7 @@ class SvnUpdate(SetupCommand):
             self.cache_dir = os.path.expanduser(cache_dir)
         self.duration = -1
         self.dirname = dirname
-        
+
     def run(self, context):
         dirname = self.dirname
 
@@ -403,7 +407,7 @@ class SvnUpdate(SetupCommand):
                 self.status = -1
                 self.output = ''
                 self.errout = 'pony-build-client cannot find expected svn dir: %s' % (dirname,)
-            
+
                 print 'wrong guess; %s does not exist.  whoops' % (dirname,)
                 return
 
@@ -481,10 +485,10 @@ def send(server_url, x, hostname=None, tags=()):
 def check(name, server_url, tags=(), hostname=None, arch=None, reserve_time=0):
     if hostname is None:
         hostname = get_hostname()
-        
+
     if arch is None:
         arch = get_arch()
-        
+
     client_info = dict(package=name, host=hostname, arch=arch, tags=tags)
     server_url = get_server_url(server_url)
     s = xmlrpclib.ServerProxy(server_url, allow_none=True)
@@ -512,11 +516,11 @@ def parse_cmdline(argv=[]):
     cmdline.add_option('-f', '--force-build', dest='force_build',
                        action='store_true', default=False,
                        help="run a build whether or not it's stale")
-    
+
     cmdline.add_option('-n', '--no-report', dest='report',
                        action='store_false', default=True,
                        help="do not report build results to server")
-    
+
     cmdline.add_option('-N', '--no-clean-temp', dest='cleanup_temp',
                        action='store_false', default=True,
                        help='do not clean up the temp directory')
@@ -545,7 +549,7 @@ def get_python_config(options, args):
     else:
         python_ver = args[0]
         print 'setting python version:', python_ver
-        
+
     tags = [python_ver]
 
     if len(args) > 1:
@@ -577,7 +581,7 @@ recipes = {
 
 if __name__ == '__main__':
     options, args = parse_cmdline()
-    
+
     package = args[0]
     (config_fn, recipe) = recipes[package]
     variables = config_fn(options, args[1:])
@@ -590,7 +594,7 @@ if __name__ == '__main__':
     ###
 
     server_url = options.server_url
-    
+
     if not options.force_build:
         if not check(package, server_url, tags=tags):
             print 'check build says no need to build; bye'
@@ -599,7 +603,7 @@ if __name__ == '__main__':
     context = TempDirectoryContext()
     results = do(package, recipe, context=context, stop_if_failure=False)
     client_info, reslist = results
-    
+
     if options.report:
         print 'result: %s; sending' % (client_info['success'],)
         send(server_url, results, tags=tags)
@@ -613,6 +617,6 @@ if __name__ == '__main__':
     if not client_info['success']:
         print 'build failed.'
         sys.exit(-1)
-        
+
     print 'build succeeded.'
     sys.exit(0)
