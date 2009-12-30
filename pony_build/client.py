@@ -43,6 +43,7 @@ def _replace_variables(cmd, variables_d):
 def _run_command(command_list, cwd=None, variables=None):
     environment = os.environ.copy()
     environment['PIP_DOWNLOAD_CACHE'] = '/tmp/pip/download'
+    environment['PYTHONPATH'] = "%s:%s" % (os.getcwd(), environment['PYTHONPATH'])
     if variables:
         x = []
         for cmd in command_list:
@@ -336,7 +337,6 @@ class GitClone(SetupCommand):
         #Make sure we're at the HEAD in the filesystem.
         cmdlist = ['git', 'reset', '--hard', 'HEAD']
         (ret, out, err) = _run_command(cmdlist, dirname)
-
 
 
     def get_results(self):
